@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inventario Inteligente RFID / Códigos de Barras</title>
+    <link href="https://jsdelivr.net" rel="stylesheet">
+</head>
+<body class="bg-light">
+    <nav class="navbar navbar-dark bg-primary mb-4">
+        <div class="container">
+            <span class="navbar-brand mb-0 h1">📦 Sistema de Gestión de Inventario Inteligente</span>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="row g-4">
+            <!-- Formulario de Lectura / Registro -->
+            <div class="col-md-4">
+                <div class="card shadow-sm">
+                    <div class="card-header bg-dark text-white">Registrar / Escanear Producto</div>
+                    <div class="card-body">
+                        <form id="formProducto">
+                            <input type="hidden" id="productoId">
+                            <div class="mb-2">
+                                <label class="form-label">Código Barras / RFID</label>
+                                <input type="text" id="codigo_rfid" class="form-control" placeholder="Ej. RFID-2045" required>
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label">Nombre del Producto</label>
+                                <input type="text" id="nombre" class="form-control" required>
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label">Categoría</label>
+                                <input type="text" id="categoria" class="form-control" required>
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label">Existencias (Stock)</label>
+                                <input type="number" id="stock" class="form-control" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Precio Unitario ($)</label>
+                                <input type="number" id="precio" class="form-control" required>
+                            </div>
+                            <button type="submit" class="btn btn-success w-100">Guardar en Inventario</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tabla en Tiempo Real -->
+            <div class="col-md-8">
+                <div class="card shadow-sm">
+                    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                        <strong>Existencias en Tiempo Real (MongoDB)</strong>
+                        <input type="text" id="buscador" class="form-control form-control-sm w-50" placeholder="Filtrar por código RFID o nombre...">
+                    </div>
+                    <div class="card-body table-responsive">
+                        <table class="table table-hover align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Código RFID</th>
+                                    <th>Producto</th>
+                                    <th>Categoría</th>
+                                    <th>Stock</th>
+                                    <th>Precio</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tablaProductos"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = "/api/productos";
+
+        async function cargarProductos() {
+            const res = await fetch(API_URL);
+            const productos = await res.json();
+            const tbody = document.getElementById("tablaProductos");
+            tbody.innerHTML = "";
+            productos.forEach(p => {
+                tbody.innerHTML += `
+                    <tr>
+                        <td><span class="badge bg-info text-dark">${p.codigo_rfid}</span></td>
+                        <td>${p.nombre}</td>
+                        <td>${p.categoria}</td>
+                        <td><strong>${p.stock}</strong></td>
+                        <td>$${p.precio}</td>
+                        <td>
+                            <button class="btn btn-sm btn-warning" onclick='editar(${JSON.stringify(p)})'>Editar</button>
+                            <button class="btn btn-sm btn-danger" onclick="eliminar('${p._id}')">Eliminar</button>
+                        </td>
+                    </tr>`;
+            });
+        }
+
+        document.getElementById("formProducto").addEventListener("submit", async (e) => {
+            e.preventDefault();
+            const id = document.getElementById("productoId").value;
+            const datos = {
+                codigo_rfid: document.getElementById("codigo_rfid").value,
+                nombre: document.getElementById("nombre").value,
+                categoria: document.getElementById("categoria").value,
+                stock: document.getElementById("stock").value,
+                precio: document.getElementById("precio").value
+            };
+            const metodo = id ? "PUT" : "POST";
+            const url = id ? `${API_URL}/${id}` : API_URL;
+            await fetch(url, {
+                method: metodo,
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify(datos)
+            });
+            e.target.reset();
+            document.getElementById("productoId").value = "";
+            cargarProductos();
+        });
+
+        function editar(p) {
+            document.getElementById("productoId").value = p._id;
+            document.getElementById("codigo_rfid").value = p.codigo_rfid;
+            document.getElementById("nombre").value = p.nombre;
+            document.getElementById("categoria").value = p.categoria;
+            document.getElementById("stock").value = p.stock;
+            document.getElementById("precio").value = p.precio;
+        }
+
+        async function eliminar(id) {
+            await fetch(`${API_URL}/${id}`, { method: "DELETE" });
+            cargarProductos();
+        }
+
+        document.getElementById("buscador").addEventListener("input", (e) => {
+            const texto = e.target.value.toLowerCase();
+            document.querySelectorAll("#tablaProductos tr").forEach(fila => {
+                fila.style.display = fila.innerText.toLowerCase().includes(texto) ? "" : "none";
+            });
+        });
+
+        cargarProductos();
+    </script>
+</body>
+</html>
