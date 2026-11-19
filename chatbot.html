@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Asistente Virtual - Inventario Inteligente RFID</title>
+  <style>
+    body { font-family: 'Segoe UI', sans-serif; background: #f4f6f9; margin: 0; padding: 20px; }
+    /* Botón flotante en burbuja */
+    #chat-bubble {
+      position: fixed; bottom: 25px; right: 25px; width: 62px; height: 62px;
+      background: #0d6efd; color: white; border-radius: 50%; border: none;
+      font-size: 28px; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+      display: flex; align-items: center; justify-content: center; z-index: 1000;
+    }
+    /* Ventana emergente del chatbot */
+    #chat-window {
+      display: none; position: fixed; bottom: 100px; right: 25px; width: 350px;
+      max-width: 90vw; background: white; border-radius: 14px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.2); overflow: hidden; z-index: 1000;
+      flex-direction: column; border: 1px solid #dee2e6;
+    }
+    #chat-header {
+      background: #0d6efd; color: white; padding: 14px; font-weight: bold;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    #chat-messages {
+      height: 300px; overflow-y: auto; padding: 12px; display: flex;
+      flex-direction: column; gap: 10px; background: #f8f9fa;
+    }
+    .msg { padding: 10px 13px; border-radius: 12px; max-width: 82%; font-size: 14px; line-height: 1.4; }
+    .bot { background: #e9ecef; color: #212529; align-self: flex-start; border-bottom-left-radius: 2px; }
+    .user { background: #0d6efd; color: white; align-self: flex-end; border-bottom-right-radius: 2px; }
+    #chat-suggestions { padding: 8px; display: flex; flex-wrap: wrap; gap: 5px; background: #fff; border-top: 1px solid #eee; }
+    .chip { background: #e7f1ff; color: #0d6efd; border: 1px solid #b6d4fe; border-radius: 15px; padding: 4px 10px; font-size: 12px; cursor: pointer; }
+    #chat-input-area { display: flex; border-top: 1px solid #dee2e6; }
+    #chat-input { flex: 1; border: none; padding: 12px; outline: none; font-size: 14px; }
+    #chat-send { background: #0d6efd; color: white; border: none; padding: 0 16px; cursor: pointer; font-weight: bold; }
+  </style>
+</head>
+<body>
+
+  <h2>Sistema de Gestión de Inventario Inteligente (Módulo Asistente Virtual)</h2>
+  <p>Haz clic en la burbuja azul de la esquina inferior derecha para interactuar con el Chatbot del inventario.</p>
+
+  <button id="chat-bubble" onclick="toggleChat()">💬</button>
+
+  <div id="chat-window">
+    <div id="chat-header">
+      <span>🤖 Asistente RFID StockBot</span>
+      <span style="cursor:pointer" onclick="toggleChat()">✖</span>
+    </div>
+    <div id="chat-messages">
+      <div class="msg bot">¡Hola! Soy <strong>StockBot</strong>, el asistente virtual del Sistema de Gestión de Inventario Inteligente. ¿En qué te ayudo hoy?</div>
+    </div>
+    <div id="chat-suggestions">
+      <button class="chip" onclick="sendQuick('¿Cómo funciona RFID?')">¿Cómo funciona RFID?</button>
+      <button class="chip" onclick="sendQuick('Registrar producto')">Registrar producto</button>
+      <button class="chip" onclick="sendQuick('Consultar stock')">Consultar stock</button>
+      <button class="chip" onclick="sendQuick('Base de datos')">Base de datos</button>
+    </div>
+    <div id="chat-input-area">
+      <input type="text" id="chat-input" placeholder="Escribe tu consulta de inventario..." onkeypress="if(event.key==='Enter') sendMessage()">
+      <button id="chat-send" onclick="sendMessage()">Enviar</button>
+    </div>
+  </div>
+
+  <script>
+    const baseConocimiento = [
+      { keys: ['hola', 'buenos', 'saludos'], resp: '¡Hola! Bienvenido al Sistema de Gestión de Inventario Inteligente. Puedes preguntarme sobre lectura RFID, registro de productos, stock mínimo o nuestra API REST.' },
+      { keys: ['rfid', 'lector', 'etiqueta', 'barras'], resp: 'El sistema utiliza lectura de códigos de barras y etiquetas RFID para identificar mercancía automáticamente sin contacto directo, reduciendo errores manuales en bodega.' },
+      { keys: ['registrar', 'agregar', 'nuevo', 'crear'], resp: 'Para registrar un producto, escanea o digita su código RFID/barras, ingresa el nombre y la cantidad en el formulario principal; el sistema lo enviará vía POST /api/productos.' },
+      { keys: ['stock', 'consultar', 'inventario', 'existencias'], resp: 'Puedes consultar las existencias en tiempo real en la tabla principal o mediante una petición GET a /api/productos. Si el stock es bajo, el sistema genera una alerta preventiva.' },
+      { keys: ['base de datos', 'mongodb', 'api', 'tecnologia'], resp: 'Nuestro backend está desarrollado en Python (Flask) conectado a una base de datos NoSQL MongoDB, garantizando sincronización inmediata entre la vista web y la app móvil APK.' },
+      { keys: ['eliminar', 'borrar', 'actualizar', 'editar'], resp: 'Desde cada fila del inventario puedes actualizar cantidades (PUT) o dar de baja productos obsoletos (DELETE) con persistencia inmediata.' }
+    ];
+
+    function toggleChat() {
+      const win = document.getElementById('chat-window');
+      win.style.display = (win.style.display === 'flex') ? 'none' : 'flex';
+    }
+
+    function sendQuick(texto) {
+      document.getElementById('chat-input').value = texto;
+      sendMessage();
+    }
+
+    function sendMessage() {
+      const input = document.getElementById('chat-input');
+      const text = input.value.trim();
+      if (!text) return;
+      addMsg(text, 'user');
+      input.value = '';
+
+      const lower = text.toLowerCase();
+      let respuesta = 'No tengo una respuesta exacta para eso aún, pero puedo ayudarte con: lectura RFID, registro de productos, consulta de stock o arquitectura MongoDB/API.';
+      for (let item of baseConocimiento) {
+        if (item.keys.some(k => lower.includes(k))) {
+          respuesta = item.resp;
+          break;
+        }
+      }
+      setTimeout(() => addMsg(respuesta, 'bot'), 300);
+    }
+
+    function addMsg(text, sender) {
+      const box = document.getElementById('chat-messages');
+      const div = document.createElement('div');
+      div.className = 'msg ' + sender;
+      div.innerHTML = text;
+      box.appendChild(div);
+      box.scrollTop = box.scrollHeight;
+    }
+  </script>
+</body>
+</html>
